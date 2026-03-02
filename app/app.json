@@ -1,0 +1,52 @@
+{
+    "expo": {
+        "name": "NovaPay",
+        "slug": "novapay",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "automatic",
+        "splash": {
+            "image": "./assets/splash.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#1A73E8"
+        },
+        "assetBundlePatterns": [
+            "**/*"
+        ],
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.novapay.app",
+            "infoPlist": {
+                "NSFaceIDUsageDescription": "Use Face ID to authenticate transactions"
+            }
+        },
+        "android": {
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#1A73E8"
+            },
+            "package": "com.novapay.app",
+            "permissions": [
+                "USE_BIOMETRIC",
+                "USE_FINGERPRINT"
+            ]
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        },
+        "extra": {
+            "supabaseUrl": "${SUPABASE_URL}",
+            "supabaseAnonKey": "${SUPABASE_ANON_KEY}"
+        },
+        "plugins": [
+            "expo-secure-store",
+            [
+                "expo-local-authentication",
+                {
+                    "faceIDPermission": "Allow NovaPay to use Face ID for secure authentication."
+                }
+            ]
+        ]
+    }
+}
