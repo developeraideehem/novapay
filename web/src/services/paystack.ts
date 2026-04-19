@@ -1,221 +1,130 @@
-// NovaPay Web - Paystack Service
-// https://paystack.com/docs/api/
+// NovaPay Web — Paystack Service
+// ⚠️  All secret-key calls are proxied through the backend (http://localhost:3001)
+//     Only the PUBLIC key is used in the browser (safe to expose).
 
-const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_b8fbbd09ebcf934b94bdfcf3c903e76f459d1d88';
-const PAYSTACK_SECRET_KEY = import.meta.env.VITE_PAYSTACK_SECRET_KEY || 'sk_test_31bbb50ef17d15a8eb5f70a8f466546d4fb4b2cd';
-const PAYSTACK_BASE_URL = 'https://api.paystack.co';
+const PAYSTACK_PUBLIC_KEY =
+    import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_b8fbbd09ebcf934b94bdfcf3c903e76f459d1d88';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+export const PAYSTACK_PUBLIC = PAYSTACK_PUBLIC_KEY;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface PaystackResponse {
     status: 'success' | 'error';
     message: string;
     reference?: string;
     amount?: number;
-    data?: any;
+    authorization_url?: string;
+    data?: unknown;
 }
 
 export interface BankAccount {
     account_number: string;
     account_name: string;
-    bank_id: number;
+    bank_code: string;
     bank_name: string;
 }
 
-export const PAYSTACK_PUBLIC = PAYSTACK_PUBLIC_KEY;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Initialize a Paystack payment (returns URL or reference for SDK)
- */
+async function backendPost<T = unknown>(path: string, body: Record<string, unknown>): Promise<T> {
+    const res = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Backend request failed');
+    return data as T;
+}
+
+// ─── Initialize payment via backend proxy ─────────────────────────────────────
 export const initializePayment = async (
     email: string,
-    amount: number, // in Naira
+    amount: number, // Naira
     reference: string,
     callback_url?: string
 ): Promise<PaystackResponse> => {
     try {
-        const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/initialize`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                email,
-                amount: amount * 100, // Paystack uses kobo
-                reference,
-                callback_url: callback_url || window.location.origin,
-                channels: ['card', 'bank', 'ussd', 'bank_transfer'],
-            }),
+        const data = await backendPost<PaystackResponse>('/api/paystack/initialize', {
+            email,
+            amount,
+            reference,
+            callback_url: callback_url || window.location.origin,
         });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.status) {
-            return {
-                status: 'error',
-                message: data.message || 'Failed to initialize payment.',
-            };
-        }
-
-        return {
-            status: 'success',
-            message: 'Payment initialized',
-            reference: data.data.reference,
-            data: data.data,
-        };
-    } catch (error: any) {
-        console.error('Paystack initialize error:', error);
-        return {
-            status: 'error',
-            message: 'Network error. Please try again.',
-        };
+        return data;
+    } catch (err: any) {
+        console.error('initializePayment error:', err.message);
+        return { status: 'error', message: err.message || 'Payment initialization failed' };
     }
 };
 
-/**
- * Verify a Paystack transaction
- */
+// ─── Verify payment via backend proxy ────────────────────────────────────────
 export const verifyPayment = async (reference: string): Promise<PaystackResponse> => {
     try {
-        const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/verify/${reference}`, {
-            headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-            },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.status || data.data?.status !== 'success') {
-            return {
-                status: 'error',
-                message: data.message || 'Payment verification failed.',
-            };
-        }
-
-        return {
-            status: 'success',
-            message: 'Payment verified successfully!',
-            reference: data.data.reference,
-            amount: data.data.amount / 100, // Convert kobo back to Naira
-            data: data.data,
-        };
-    } catch (error: any) {
-        console.error('Paystack verify error:', error);
-        return {
-            status: 'error',
-            message: 'Network error during verification.',
-        };
+        const data = await backendPost<PaystackResponse>('/api/paystack/verify', { reference });
+        return data;
+    } catch (err: any) {
+        console.error('verifyPayment error:', err.message);
+        return { status: 'error', message: err.message || 'Verification failed' };
     }
 };
 
-/**
- * Resolve a bank account number
- */
+// ─── Resolve bank account via backend proxy ───────────────────────────────────
 export const resolveBankAccount = async (
     accountNumber: string,
     bankCode: string
 ): Promise<{ success: boolean; account_name?: string; message?: string }> => {
     try {
-        const response = await fetch(
-            `${PAYSTACK_BASE_URL}/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-                },
-            }
+        const data = await backendPost<{ status: string; account_name?: string; message?: string }>(
+            '/api/paystack/resolve-bank',
+            { account_number: accountNumber, bank_code: bankCode }
         );
-
-        const data = await response.json();
-
-        if (!response.ok || !data.status) {
-            return { success: false, message: data.message || 'Invalid account number.' };
-        }
-
-        return { success: true, account_name: data.data.account_name };
-    } catch (error: any) {
-        return { success: false, message: 'Could not resolve account. Please check details.' };
+        return { success: data.status === 'success', account_name: data.account_name };
+    } catch (err: any) {
+        return { success: false, message: err.message || 'Could not resolve account' };
     }
 };
 
-/**
- * Create a transfer recipient (for bank withdrawals)
- */
+// ─── Create transfer recipient via backend proxy ──────────────────────────────
 export const createTransferRecipient = async (
     name: string,
     accountNumber: string,
     bankCode: string
 ): Promise<{ success: boolean; recipient_code?: string; message?: string }> => {
     try {
-        const response = await fetch(`${PAYSTACK_BASE_URL}/transferrecipient`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                type: 'nuban',
-                name,
-                account_number: accountNumber,
-                bank_code: bankCode,
-                currency: 'NGN',
-            }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.status) {
-            return { success: false, message: data.message || 'Failed to create recipient.' };
-        }
-
-        return { success: true, recipient_code: data.data.recipient_code };
-    } catch (error: any) {
-        return { success: false, message: 'Network error. Please try again.' };
+        const data = await backendPost<{ status: string; recipient_code?: string; message?: string }>(
+            '/api/paystack/create-recipient',
+            { name, account_number: accountNumber, bank_code: bankCode }
+        );
+        return { success: data.status === 'success', recipient_code: data.recipient_code };
+    } catch (err: any) {
+        return { success: false, message: err.message || 'Failed to create recipient' };
     }
 };
 
-/**
- * Initiate bank transfer (withdrawal)
- */
+// ─── Initiate bank withdrawal via backend proxy ───────────────────────────────
 export const initiateTransfer = async (
-    amount: number,
+    amount: number, // Naira
     recipient_code: string,
     reason: string
 ): Promise<PaystackResponse> => {
     try {
-        const reference = `WD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-
-        const response = await fetch(`${PAYSTACK_BASE_URL}/transfer`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                source: 'balance',
-                amount: amount * 100, // kobo
-                recipient: recipient_code,
-                reason,
-                reference,
-            }),
+        const data = await backendPost<PaystackResponse>('/api/paystack/transfer', {
+            amount,
+            recipient_code,
+            reason,
         });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.status) {
-            return { status: 'error', message: data.message || 'Transfer failed.' };
-        }
-
-        return {
-            status: 'success',
-            message: 'Transfer initiated successfully!',
-            reference: data.data.reference,
-            data: data.data,
-        };
-    } catch (error: any) {
-        return { status: 'error', message: 'Network error. Please try again.' };
+        return data;
+    } catch (err: any) {
+        console.error('initiateTransfer error:', err.message);
+        return { status: 'error', message: err.message || 'Transfer failed' };
     }
 };
 
-// Nigerian Banks list
+// ─── Nigerian Banks list ──────────────────────────────────────────────────────
 export const NIGERIAN_BANKS = [
     { name: 'Access Bank', code: '044' },
     { name: 'Citibank Nigeria', code: '023' },

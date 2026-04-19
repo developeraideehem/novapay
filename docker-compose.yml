@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8080
+      # Load these secrets locally from the .env file if available
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - PAYSTACK_SECRET_KEY=${PAYSTACK_SECRET_KEY}
+    networks:
+      - novapay-network
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        # Pass the backend URL through to the Vite build step
+        # Note: Depending on where this is running, localhost might not work.
+        # It's better to pass it as http://localhost:3001 for local PC testing.
+        - VITE_API_URL=http://localhost:3001
+        - VITE_PAYSTACK_PUBLIC_KEY=${VITE_PAYSTACK_PUBLIC_KEY}
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - novapay-network
+
+networks:
+  novapay-network:
+    driver: bridge

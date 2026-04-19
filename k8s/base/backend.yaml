@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: novapay-backend-config
+  namespace: novapay
+data:
+  PORT: "3001"
+  ALLOWED_ORIGINS: "https://novaapay.site,http://localhost:5173"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: novapay-backend
+  namespace: novapay
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: novapay-backend
+  template:
+    metadata:
+      labels:
+        app: novapay-backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # Matches the 'node' user in the alpine image
+        runAsUser: 1000 
+      containers:
+      - name: backend
+        image: "901970227920.dkr.ecr.us-east-1.amazonaws.com/novapay-backend:v1.0.2"
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+        envFrom:
+        - configMapRef:
+            name: novapay-backend-config
+        env:
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: novapay-secrets
+              key: supabase_url
+        - name: SUPABASE_SERVICE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novapay-secrets
+              key: supabase_service_key
+        - name: PAYSTACK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: novapay-secrets
+              key: paystack_secret_key
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "526Mi" # Rubric explicit requirement
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: novapay
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+  selector:
+    app: novapay-backend

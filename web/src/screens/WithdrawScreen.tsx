@@ -16,7 +16,6 @@ export const WithdrawScreen: React.FC = () => {
     const [amount, setAmount] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
-    const [reference, setReference] = useState('')
     const [withdrawnAmount, setWithdrawnAmount] = useState(0)
 
     const verifyAccount = async () => {
@@ -27,7 +26,6 @@ export const WithdrawScreen: React.FC = () => {
         setError('')
         setAccountName('')
 
-        const bank = NIGERIAN_BANKS.find((b) => b.code === selectedBank)
         const result = await resolveBankAccount(accountNumber, selectedBank)
 
         setLoading(false)
@@ -83,32 +81,14 @@ export const WithdrawScreen: React.FC = () => {
                 fee: 0,
             })
             await refreshWallet()
-            await refreshTransactions()
-            setReference(ref)
-            setWithdrawnAmount(amountNum)
-            setStep('success')
-            setLoading(false)
-            return
         }
 
-        const ref = transferResult.reference || `WD-${Date.now()}`
-        await createTransaction({
-            wallet_id: wallet.id,
-            type: 'debit',
-            category: 'withdrawal',
-            amount: amountNum,
-            description: `Withdrawal to ${accountName} (${accountNumber})`,
-            reference: ref,
-            fee: 0,
-        })
-
-        await refreshWallet()
         await refreshTransactions()
-        setReference(ref)
         setWithdrawnAmount(amountNum)
         setStep('success')
         setLoading(false)
     }
+
 
     const bankName = NIGERIAN_BANKS.find((b) => b.code === selectedBank)?.name
 
