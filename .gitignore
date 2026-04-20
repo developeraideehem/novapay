@@ -107,3 +107,22 @@ coverage/
 .cache/
 .parcel-cache/
 .turbo/
+
+# ===========================
+# Terraform
+# ===========================
+**/.terraform/
+**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+terraform.tfvars
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+crash.log
+crash.*.log
