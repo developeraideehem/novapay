@@ -64,9 +64,8 @@ jobs:
   mobile:
     name: Mobile App (Expo + TypeScript)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: app
+    # No defaults.run.working-directory here — app/ may not exist yet.
+    # working-directory is set per-step only where needed.
 
     steps:
       - name: Checkout repository
@@ -80,8 +79,9 @@ jobs:
 
       - name: Check if app directory exists
         id: app_check
+        # Runs from repo root — no working-directory override
         run: |
-          if [ -d "../app" ]; then
+          if [ -d "app" ]; then
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
@@ -90,12 +90,15 @@ jobs:
 
       - name: Install dependencies
         if: steps.app_check.outputs.exists == 'true'
+        working-directory: app
         run: npm ci
 
       - name: TypeScript type check
         if: steps.app_check.outputs.exists == 'true'
+        working-directory: app
         run: npx tsc --noEmit
         continue-on-error: true
+
 
   # ─────────────────────────────────────────
   # Database — Lint SQL files
