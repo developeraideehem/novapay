@@ -76,13 +76,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
+          # No cache: app/ directory does not exist yet in this repo
+
+      - name: Check if app directory exists
+        id: app_check
+        run: |
+          if [ -d "../app" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  app/ directory not found — skipping mobile checks."
+          fi
 
       - name: Install dependencies
+        if: steps.app_check.outputs.exists == 'true'
         run: npm ci
 
       - name: TypeScript type check
+        if: steps.app_check.outputs.exists == 'true'
         run: npx tsc --noEmit
         continue-on-error: true
 
@@ -97,13 +108,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify SQL files exist and are non-empty
+      - name: Verify SQL migration files exist and are non-empty
         run: |
-          for f in supabase/schema.sql supabase/functions.sql supabase/rls.sql; do
+          # Check that at least one migration file exists in supabase/migrations/
+          MIGRATION_DIR="supabase/migrations"
+          if [ ! -d "$MIGRATION_DIR" ]; then
+            echo "ERROR: $MIGRATION_DIR directory is missing"
+            exit 1
+          fi
+
+          SQL_FILES=$(find "$MIGRATION_DIR" -name "*.sql" | sort)
+          if [ -z "$SQL_FILES" ]; then
+            echo "ERROR: No .sql migration files found in $MIGRATION_DIR"
+            exit 1
+          fi
+
+          ALL_OK=true
+          for f in $SQL_FILES; do
             if [ ! -s "$f" ]; then
-              echo "ERROR: $f is missing or empty"
-              exit 1
+              echo "ERROR: $f is empty"
+              ALL_OK=false
             else
               echo "✅ $f — $(wc -l < $f) lines"
             fi
           done
+
+          if [ "$ALL_OK" = false ]; then
+            exit 1
+          fi
