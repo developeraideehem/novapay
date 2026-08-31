@@ -8,7 +8,7 @@ data "aws_availability_zones" "available" {
 # VPC CIDR: 10.0.0.0/16
 # AZ Coverage: 3 Availability Zones minimum
 # Subnets: 3 public, 3 private
-# NAT: Redundant NAT Gateways (1 per AZ for high availability)
+# NAT: Redundant NAT Gateways (Designed a multi-AZ architecture while balancing availability requirements against AWS infrastructure cost.)
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
